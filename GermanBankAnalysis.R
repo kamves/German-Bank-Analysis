@@ -1,4 +1,4 @@
-# By Kamerin Vesajd
+# By Kamerin Vesajd and Chiayu Tu
 ## ----setup, include=FALSE---------------------------------------------------------------------------------------
 knitr::opts_chunk$set(fig.pos='H')
 knitr::opts_chunk$set(echo = FALSE)
