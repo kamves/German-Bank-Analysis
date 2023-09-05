@@ -1,0 +1,1085 @@
+---
+title: 'STAT 387: German Credit Data Analysis'
+author: "Kamerin Vesajd & Louis Tu"
+date: "03-01-2023"
+output:
+  word_document:
+    toc: yes
+    toc_depth: '2'
+  html_document:
+    toc: yes
+    toc_depth: 2
+  pdf_document:
+    toc: yes
+    toc_depth: 2
+subtitle: GROUP 5
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.pos='H')
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r, include=FALSE}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(pander)
+library(car)
+library(corrplot)
+library(glmnet)
+library(patchwork)
+library(faraway)
+library(naniar)
+library(ROCR)
+library(MASS)
+library(caret)
+library(cowplot)
+library(tinytex)
+library(table1)
+library(knitr)
+library(float)
+library(scales)
+library(stringr)
+library(flextable)
+
+library(ISLR2)
+library(class)
+library(pROC)
+library(e1071)
+```
+\newpage
+
+# 1) Introduction 
+
+## - Overview 
+
+When a bank receives a loan application, they need to assess whether to approve it or not based on the applicant's profile. 
+This decision carries two risks: 
+
+* Declining a loan to a good credit risk resulting in lost business for the bank
+* Approving a loan to a bad credit risk resulting in financial loss for the bank.
+
+In preface we will analyze the German Credit Data set itself to validate that there's no outliers. Then we will resume into analyzing the socio-economic characteristics in relation categorical response, Default *(1 = "Defaulted", 0 = "Not Defaulted")* of the German Credit Data set. To accurately analyze loan applicants socio-economic factors we will observe the different methods to finding the optimal classification models which can help improve accuracy of loan approval decisions and minimize risk of approving loans to individuals who are more likely to default. Ultimately this will help reduce losses and improve profitability for the bank.
+
+## - Analysis Objective
+
+**To minimize the bank’s potential losses** by evaluating the demographic and socio-economic characteristics of loan applicants in order to determine whether to approve or reject their loan application. 
+
+* Finding the best model to help accurately assess and predict socio-economic characteristics of bank loan applicants
+
+## - Problem Statements
+
+(a) Perform an exploratory analysis of data.
+(b) Build a reasonably “good” logistic regression model for these data. There is no need to explore interactions. Carefully justify all the choices you make in building the model.
+(c) Write the final model in equation form. Provide a summary of estimates of the regression coefficients, the standard errors of the estimates, and 95% confidence intervals of the coefficients. Interpret the estimated coefficients of at least two predictors. Provide training error rate for the model.
+(d) Fit a KNN with K chosen optimally using test error rate. Report error rate, sensitivity, specificity, and AUC for the optimal KNN based on the training data. Also, report its estimated test error rate.
+(e) Repeat (d) using LDA.
+(f) Repeat (d) using QDA.
+(g) Repeat (d) using Naïve Bayes Classifier.
+(h) Compare the results in (b), (d)-(f). Which classifier would you recommend? Justify your answer.
+
+## - Methodologies
+
+**Exploratory Analysis**
+
+* Import data
+* Check for missing values & outliers
+* Examine data distribution via. GGPlot
+* Check for Multi-collinearity
+
+**Building Logistic Regression Model**
+
+* Generalized Linear Model
+  
+* Step-AIC 
+  
+  * Start's with the initial model then adds or remove predictors one at a time based on its AIC value. The goal is selecting the best subset of predictor variables in the model when the number of potential predictors is large.
+
+**Data Modeling**
+
+* (KNN) K-Nearest Neighbors
+
+  * $\hat{y}$ is the predicted class
+  * $y_i$ is the class label of the $i$th nearest neighbor
+  * $I(\cdot)$ is the indicator function that evaluates to 1 if the argument is true, and 0 otherwise
+
+  $\hat{y} = \frac{1}{k} \sum_{i=1}^{k} I(y_i = y)$
+  
+  * A machine learning algorithm that predicts the output of a test point based on the output of its nearest neighbors in the training set. The algorithm can be used for classification and regression tasks and the choice of k affects its accuracy.
+    
+* (LDA) Linear Discriminant Analysis
+
+  * $\mathbf{w}$ represents the linear discriminant function that separates the classes
+  * $\mathbf{S_W}$ represents the within-class scatter matrix 
+  * $\mathbf{m_1}$ and $\mathbf{m_2}$ represent the means of the two classes
+  * $\lVert\cdot\rVert$ denotes the Euclidean norm
+  
+  $\mathbf{w} = \frac{\mathbf{S_W}^{-1}(\mathbf{m_2} - \mathbf{m_1})}{\lVert\mathbf{S_W}^{-1}(\mathbf{m_2} - \mathbf{m_1})\rVert}$
+
+  * High Dimensionality reduction technique that works by projecting high-dimensional data onto a lower-dimensional space while maximizing the separation between the classes. Goal of LDA is to find the linear combination of features that best seperates the classes.
+  
+  
+* QDA
+
+  * $p(y=k|\mathbf{x})$ represents the probability that the input $\mathbf{x}$ belongs to class 
+  * $k$, $\mathbf{\mu}_k$ represents the mean vector of class $k$ 
+  * $\mathbf{\Sigma}_k$ represents the covariance matrix of class $k$
+  * $|\cdot|$ represents the determinant of the matrix
+
+  $p(y=k|\mathbf{x}) =\frac{1}{(2\pi)^{p/2}|\mathbf{\Sigma}_k|^{1/2}}\exp\left(-\frac{1}{2}(\mathbf{x}-\mathbf{\mu}_k)^T\mathbf{\Sigma}_k^{-1}(\mathbf{x}-\mathbf{\mu}_k)\right)$
+  
+  * A classification algorithm that works by modeling the probability distribution of each class using a quadratic function.     Unlike LDA, QDA assumes that the covariance matrix of each class is different. The goal of QDA is to find the parameters that maximize the likelihood of the training data given the class labels.
+  
+* Naive Bayes
+
+  * $p(y=k|\mathbf{x})$ represents the posterior probability that the input $\mathbf{x}$ belongs to class $k$                  
+  * $p(\mathbf{x}|y=k)$ represents the likelihood of the input given that it belongs to class $k$
+  * $p(y=k)$ represents the prior probability of class $k$
+  * $p(\mathbf{x})$ represents the marginal probability of the input
+  
+  $p(y=k|\mathbf{x}) = \frac{p(\mathbf{x}|y=k)p(y=k)}{p(\mathbf{x})}$
+
+  * A probabilistic classification algorithm that is based on Bayes' theorem. It is called "naive" because it assumes that the features are conditionally independent given the class label, which may not be true in reality. Despite this simplifying assumption, Naive Bayes can perform well on a wide range of classification tasks. Goal of Naive Bayes is to find the class label that maximizes the posterior probability given the input.
+ 
+
+
+# 2) Exploratory Analysis of the Data
+
+## - Data description
+
+We imported 1000 observations (1000 loan applicants) from the German Credit Data. In this data set there are 6 Numerical Variables and 15 Categorical variables where the Response 'Default' is a Categorical with the levels of 1 and 0. The response 'Default' is indicate of whether the applicant has paid their loan back yet. 1 (Defaulted) represents that the they haven't paid yet and 0 (Not Defaulted) representing that they have. 
+
+## - Numerical Predictors:
+
+* Duration (Months): Length of time the individual is expected to take to repay the credit.
+
+* Amount: Credit amount requested (DM)
+
+* Residence: Length of time lived in current residence
+
+* Age: Age of applicant by years
+
+* Cards: Numbers of existing credit cards at the bank
+
+* Liable: Number of people liable to provide maintenance for
+
+## - Categorical Predictors:
+
+```{r, warning=FALSE}
+credTable <- read.csv("germancredit.csv", header = TRUE)
+
+credTable$checkingstatus1 = factor(credTable$checkingstatus1,
+  levels=c("A11", "A12", "A13", "A14"), 
+  labels=c("< 0 DM", "0 <= ... < 200 DM", 
+           "... >= 200 DM or salary assignment", "no checking account"))
+
+credTable$history = factor(credTable$history, 
+                            levels=c("A30", "A31", "A32", "A33", "A34"), 
+                            labels=c("no credits taken/all credits paid back duly", "all credits at this bank paid back duly", "existing credits paid back duly till now", "delay in paying off in the past", "critical account/other credits existing (not at this bank)"))
+
+credTable$purpose = factor(credTable$purpose,
+                           levels=c("A40", "A41", "A42", "A43", "A44", "A45", "A46", "A48", "A49", "A410"),
+                           labels=c("car (new)", "car (used)", "furniture/equipment", "radio/television", "domestic appliances", "repairs", "education", "retraining","business", "others"))
+
+credTable$savings <- factor(credTable$savings,
+                                  levels=c("A61", "A62", "A63", "A64", "A65"),
+                                  labels=c("< 100 DM", ">= 100 ... < 500 DM", ">= 500 ... < 1000 DM", ">= 1000 DM", "unknown/no savings account"))
+
+
+credTable$employ <- factor(credTable$employ,
+                                  levels=c("A71", "A72", "A73", "A74", "A75"),
+                                  labels=c("unemployed", "< 1 year", ">= 1 year ... < 4 years", ">= 4 years ... < 7 years", ">= 7 years"))
+
+credTable$status <- factor(credTable$status ,
+                                  levels=c("A91", "A92", "A93", "A94", "A95"),
+                                  labels=c("male : divorced/separated", "female : divorced/separated/married", "male : single", "male : married/widowed", "female : single"))
+
+credTable$others <- factor(credTable$others,
+                                  levels=c("A101", "A102", "A103"),
+                                  labels=c("none", "co-applicant", "guarantor"))
+
+credTable$property <- factor(credTable$property,
+                                  levels=c("A121", "A122", "A123", "124"),
+                                  labels=c("real estate", "building society savings agreement/life insurance", "car or other", "unknown / no property"))
+
+credTable$otherplans <- factor(credTable$otherplans,
+                                  levels=c("A141", "A142", "A143"),
+                                  labels=c("bank", "stores", "none"))
+
+credTable$housing <- factor(credTable$housing,
+                                  levels=c("A151", "A152", "A153"),
+                                  labels=c("rent", "own", "for free"))
+
+
+credTable$job <- factor(credTable$job,
+                                  levels=c("A171", "A172", "A173", "A174"),
+                                  labels=c("unemployed, unskilled, non-resident", 
+                                           "unskilled resident", "skilled, employee", "manager, self-employed"))
+
+
+credTable$tele <- factor(credTable$tele,
+                                  levels=c("A191", "A192"),
+                                  labels=c("none", "yes, registered under the customer name"))
+
+credTable$foreign <- factor(credTable$foreign,
+                                  levels=c("A201", "A202"),
+                                  labels=c("yes", "no"))
+
+# Missing "Purpose" predictor...
+table1(~ + checkingstatus1 + history + savings +  purpose 
+       + employ + status + others + property, data=credTable)
+
+
+```
+
+
+```{r}
+table1(~otherplans + housing + job + tele + foreign, data=credTable)
+```
+
+
+The list above is describing the levels for each categorical variable and its percentage of individuals that fall in that category (1000 applicants) provided from *germancreditDescription.docx*
+
+**Noticeable categorical labels missing:**
+
+  * "A47" from "Purpose" Categorical
+  
+  * "Installment" was never provided with a given label for each level.
+  
+    * *"A47" representing if the applicant is on Vacation was removed from the description table since the data set didn't contain such*
+    * *Installment Rate label wasn't provided within the description, so this variable was missing in the table above due to lack of interpretation*
+    
+### Categorical Predictors Definitions:
+
+* Checkingstatus1: status of existing checking account
+
+* History: Credit history of the applicant
+
+* Purpose: Purpose of requesting loan
+
+* Savings: Savings account/bonds held by the individual
+
+* Employ: Employment status
+
+* Status: Status of personal and family finances
+
+* Installment: The percentage amount of money that the loan applicant has to pay back each month to repay the loan
+
+* Others: Other debtors/guarantors on the loan
+
+* Property: The type of property owned by the applicant
+
+* Otherplans: Other installment plans held by the applicant
+
+* Housing: Type of housing the applicant resides in
+
+* Job: Type of job held by the applicant
+
+* Tele: Indicates if applicant has a telephone registered
+
+* Foreign: Indicates if the applicant is a foreign worker or not
+
+```{r}
+# non_numeric_cols <- credit %>% 
+#   select_if(function(x) !is.numeric(x)) %>% 
+#   names()
+```
+
+**Source (hyperlinked):** [germancreditDescription.docx](https://www.biz.uiowa.edu/faculty/jledolter/DataMining/germancreditDescription.docx)
+
+
+## - Exploratory Analysis of the Data
+
+By performing an exploratory analysis of data, we can identify potential issues and address them before building the logistic regression model. This can improve our model's accuracy and reliability.
+
+To begin our exploratory analysis of the German Credit Data Set, we'll firstly import it and check how many categorical and continuous variables are present.
+
+```{r}
+# Load data
+credit <- read.csv("germancredit.csv", header = TRUE)
+
+head(credit)
+
+# Checks for missing values in the dataframe
+n_miss_data = n_miss(credit)
+
+# Checking for NA values
+na_count = sum(is.na(credit))
+
+pander(data.frame(Total_Missing_Values = n_miss_data))
+pander(data.frame(Total_NAs = na_count))
+
+```
+
+We can see that the credit data contains information about various attributes of individuals, including their Default (whether they paid required interest or installment on a debt) and other factors such as their checking status (account balance), duration of credit, payment status of previous credit, and so on.
+
+The German credit data contains no NAs and missing values, allowing the data to be safe to resume towards the next data exploratory stages.
+
+
+## - Examining Unusual Observations
+
+When setting up our Logistic Regression Model, we want to make sure if there are any outlier that can significantly influence the estimated coefficients and lead to a biased result. This step allows for improvement of accuracy and reliability of the model.
+
+### - Outliers
+
+```{r}
+german_credit.glm = glm(as.factor(Default) ~ . , data=credit, family="binomial")
+
+plot(german_credit.glm, which=1)
+
+```
+
+We can see that outlier points are at the observation 191, 758 and 506 with positive residuals when predicted values are negative. This may suggest that the influential outliers or observations may have effect on the model. 
+
+## - Checking Cooks Distance
+
+```{r}
+
+plot(german_credit.glm, which=4 )
+```
+
+However looking further into Cook's Distance which are observations that influence the regression coefficients the most, we can see observation at 204, 736 and 819 are the points of high leverage.
+
+## - Comparing the Initial Model to the Outlier-Removed Model
+
+```{r}
+
+par(mfrow = c(1,2))
+
+cooksd = cooks.distance(german_credit.glm)
+influential = as.numeric(names(cooksd)[(cooksd > 4/nrow(credit))])
+
+credit2 = credit[-influential,]
+german_credit.glm2 = glm(Default ~ . , data=credit2, family = "binomial")
+
+plot(german_credit.glm, which=1)
+title("Original Model",
+        adj = .5,
+        cex.main = .9,
+      line=1.3)
+
+plot(german_credit.glm2, which=1)
+title("Influentials Removed Model",
+        adj = .5,
+        cex.main = .9,
+      line= 1.3)
+
+
+
+```
+
+After attempting to fit the model with removed influential points, we can see the outliers are still prominent in the data with even higher residuals, thus removing the outliers were proven to show no improvement. This could tell us is that the overall data may have insufficient amount data to which causes this unusual observation. When observing a couple of the outliers rows from the credit data, there were no unexpected structure or format the observations. Thus we will resume with the original data set. 
+
+```{r}
+
+# credit[508,]
+# credit[758,]
+# head(credit,10)
+
+```
+
+
+# 3) Examining distribution of categorical and numerical variables
+
+```{r}
+ggplot(data = credit, aes(x = Default, fill=factor(Default))) +
+  geom_histogram(binwidth=1, alpha=0.9) +
+  labs(x = "Default", 
+       y = "Total Count",
+       title="Applicants Default Distribution",
+       fill = "Default Status") +
+  scale_fill_manual(values=c("lightgreen", "#FFB6C1"), 
+                    labels=c("Default = 0", "Default = 1")) +
+  theme(plot.title = element_text(hjust = 0.5, 
+                                  face = "bold"),
+  legend.position = c(.9,.85),
+  legend.title = element_text(face = "bold")) +
+    scale_x_continuous(breaks = seq(0, 10, 1)) 
+
+```
+
+We can see that the data distribution among the response Default have a 40% more people who haven't Defaulted (0 = No) compared to those who have Defaulted (1 = Yes). This implies that there 40% more individuals have been able to pay off their debt/loan on time than those who haven't. 
+
+## - Observing Applicants Age in Relation to Default Status
+
+```{r}
+
+# Examining ages between 20-30 Data
+credit20 = credit |> filter(between(credit$age, 20, 30))
+
+agePlot= ggplot(data = credit, aes(x = age)) +
+  geom_histogram(binwidth = 5, fill = "lightblue", color = "black") +
+  labs(x = "Age", y = "Frequency") +
+    scale_x_continuous(breaks = seq(0, max(credit$age), 10))
+  
+amountPlot = ggplot(data = credit, aes(x = amount)) +
+  geom_histogram(binwidth = 500, fill = "lightgreen", color = "black") +
+  labs(x = "Credit Amount", y = "Frequency") +
+  scale_x_continuous(breaks = seq(0, max(credit$amount), 2000))
+
+durationPlot= ggplot(data = credit, aes(x = duration)) +
+  geom_histogram(binwidth = 6, fill = "brown", color = "black") +
+  labs(x = "Duration (months)", y = "Frequency") +
+  scale_x_continuous(breaks = seq(0, max(credit$amount), 10))
+
+# -------- Plotting Credit Amount and Duration for Age: 20-30--------
+amount20Plot = ggplot(data = credit20, aes(x = amount)) +
+  geom_histogram(binwidth = 500, fill = "lightgreen", color = "black") +
+  labs(x = "Credit Amount", y = "Frequency",
+       title="Ages between 20-30") +
+  scale_x_continuous(breaks = seq(0, max(credit$amount), 2000))
+
+duration20Plot= ggplot(data = credit20, aes(x = duration)) +
+  geom_histogram(binwidth = 6, fill = "brown", color = "black") +
+  labs(x = "Duration (months)", y = "Frequency") +
+  scale_x_continuous(breaks = seq(0, max(credit$amount), 10))
+
+
+# Overall Distribution
+(agePlot + durationPlot) / amountPlot + plot_annotation(title = "Overall Distribution",
+                               subtitle = "(Age, Duration, Credit Amount)",
+                               theme = theme(plot.title = element_text(hjust = 0.5),
+                                             plot.subtitle = element_text(hjust = 0.5)
+                                             ))
+
+duration20Plot / amount20Plot  + plot_annotation(title = "Ages Between 20-30 Distribution",
+                           subtitle = "(Duration, Credit Amount)",
+                           theme = theme(plot.title = element_text(hjust = 0.5),
+                                         plot.subtitle = element_text(hjust = 0.5)
+                                         ))
+
+
+```
+
+When observing the numerical predictors (Age, Amount and Duration) in the Overall Distribution plot, we see that within around the 10-month mark of owning credit, majority having a credit amount of 1500-2000DM at the age of 22-25. However analyzing this from the outside is still obscure. To further analyze this relationship, the data [Figure: Ages Between 20-30 Distribution] is filtered to include only applicants within the age range of 20-30. Upon closer examination, it is found that the credit amount of 1500-2000 DM accounts for 40% of the overall credit amount frequency within this age range. This finding may indicate that a credit amount within this range is more common among younger applicants, and may be a contributing factor to the default rate observed in the data.
+
+
+```{r, warning=FALSE}
+ggplot(credit, aes(x = age, fill = Default)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Age vs Default Status",
+       x= "Age",
+       y="Default Density") +
+  scale_x_continuous(breaks = seq(0, max(credit$age), 10))
+```
+
+Exploring the relationship between Age and Default, we can see that at ages between 20-30, there is an increase in density of individuals that Default. This may be due to individuals in this age group may have less financial stability and may be more prone to financial struggles such as unemployment or underemployment, making it difficult to pay back their loans. Additionally, individuals in this age group may have less experience managing their finances, leading to a higher likelihood of defaulting on loans. 
+
+
+## - Further look into Age Vs Default Case:
+
+According to [richmondfed.org](https://www.richmondfed.org/-/media/richmondfedorg/publications/research/economic_brief/2013/pdf/eb_13-12.pdf), "young borrowers are considered to be less likely to have a serious deliquency than middle-aged credit card users." *(richmondfed.org, Peter Debbaut, December 2013).* Our German Credit data however was pulled from 1994 so there is a difference in economic time periods and/or regions of banking systems compared to a later time period article, as well this article is based in the United States. We also have to consider that we have 1000 observations so it may not be enough to generalize this observation, however it is an interesting insight to pull. 
+
+
+## - Exploring the Socio-Economic Characteristics of Loan Applicants
+
+### Credit History 
+
+```{r}
+
+ggplot(data = credit, aes(x = history , fill=factor(Default))) +
+  geom_bar() +
+  labs(x = "Credit History", 
+       y = "Total Count",
+       title="Credit History Status Distribution",
+       fill="Default Status") +
+  scale_fill_manual(values=c("lightgreen", "#ff9999"), 
+                    labels=c("Default = 0", "Default = 1")) +
+  theme(plot.title = element_text(hjust = 0.5, 
+                                  face = "bold"),
+  legend.position = c(.9,.85),
+  legend.title = element_text(face = "bold"),
+        axis.text.x = element_text(hjust = .5, vjust = .3, 
+                                    margin = margin(t = 0, r = 3, b = 2, l = .5))) +
+   scale_x_discrete(labels = c("No credits taken/ all 
+credits paid back duly ", 
+                               "All credits at this 
+bank paid back duly", 
+                               "Existing credits paid 
+back duly till now", 
+                               "Delay in paying 
+off in the past",
+                              "Critical account / other 
+credits existing"))
+
+```
+
+We can observe that applicants with a history of paying on time are likely Default to 0 which is clear. It is important to note that even if applicants have a history of paying their debts on time, they can still default on their loans if they are unable to make timely payments due to unforeseen financial difficulties. This is reflected in the fact that the "History" variable has a 56% share of Defaults=1, compared to other variables that Default to 1.
+
+```{r}
+# nrow(subset(credit, Default == 1 & history == "A32"))
+# nrow(subset(credit, Default == 1))
+```
+
+
+### Checking Status
+
+```{r}
+
+ggplot(data = credit, aes(x = checkingstatus1 , fill=factor(Default))) +
+  geom_bar() +
+  labs(x = "Checking Status", 
+       y = "Total Count",
+       title="Checking Status Distribution",
+       fill="Checking Status") +
+  scale_fill_manual(values=c("lightgreen", "#ff9999"), 
+                    labels=c("Default = 0", "Default = 1")) +
+  theme(plot.title = element_text(hjust = 0.5, 
+                                  face = "bold"),
+  legend.title = element_text(face = "bold"),
+        axis.text.x = element_text(hjust = .5, vjust = .3, 
+                                    margin = margin(t = 0, r = 3, b = 2, l = .5))) +
+   scale_x_discrete(labels = c("Less than 0 DM",
+                               "0 to 200 DM",
+                               "More than 200 DM",
+                               "No Checking Account"))
+
+```
+
+We can see that it's clear that those with no checking accounts are the least likely to Default as their limited in access to credit and financial obligations. For those with checking account balances of less than 0DM and 0-200DM, the ratio of Defaulting versus not Defaulting seems to be similar. However, those with balances less than 0DM have a higher likelihood of Defaulting compared to other factors. Loan applicants with a checking account balance greater than 200DM are a smaller pool but have better odds of not Defaulting, as this score is indicative of a history of responsible financial management.
+
+### Housing Status 
+
+```{r}
+ggplot(data = credit, aes(x = housing , fill=factor(Default))) +
+  geom_bar() +
+  labs(x = "Checking Status", 
+       y = "Total Count",
+       title="Housing Status Distribution",
+       fill="Default Status") +
+  scale_fill_manual(values=c("lightgreen", "#ff9999"), 
+                    labels=c("Default = 0", "Default = 1")) +
+  theme(plot.title = element_text(hjust = 0.5, 
+                                  face = "bold"),
+  legend.title = element_text(face = "bold"),
+        axis.text.x = element_text(hjust = .5, vjust = .3, 
+                                    margin = margin(t = 0, r = 1, b = 2, l = .5))) +
+   scale_x_discrete(labels = c("Rent",
+                               "Own",
+                               "For Free"))
+```
+
+From the overall distribution we can see Applicants that own a home are least likely to Default, but also seem to be the most likely to Default compared to the other variables (Renting & Free).
+
+
+## Data Distribution Summary:
+
+From observing the few characteristics of applicants in the German Credit Data, we can see factors where individuals who own a home, have no Checking account, pays back their credit on time are least likely to default as these are signs of individuals who are able to handle their money responsibly. We also found from one of the numeric components that applicants of the Ages between 20-30 are more likely to Default than older individuals 
+
+# 4) Logistic Regression Model Overview 
+
+Let's setup a logistic regression model to help identify the relationships between the predictor variables to the response 'Default'. This will help investigate the strength and direction of the relationships for further model diagnostic. 
+
+```{r}
+german_credit.glm = glm(Default ~ . , data=credit, family="binomial")
+
+pred_names = names(german_credit.glm$coefficients)[-1]
+# pander(data.frame(Total_predictors=length(pred_names)))
+
+p_values = summary(german_credit.glm)$coefficients[,4]
+sig_predictors = p_values[p_values<0.05]
+
+pander(data.frame(Significant_P_Values = sig_predictors))
+
+```
+
+We can see that there are 16 predictors proven to be statistically significant. The significant predictors reveal that it's relationship between hee response Default are unlikely to have occurred by chance.  These can be factors for the bank to see which have the most effect on the response (Default).
+
+## - Checking multi-collinearity of the general data set
+
+```{r}
+vif = vif(german_credit.glm)
+
+vif_mc = vif[vif>10]
+vif_non_mc = vif[vif<10]
+
+pander(data.frame(Non_Collinear_Variables = vif_non_mc))
+```
+
+Among the 48 predictors in the overall logistic regression model, we can see there is 17 predictors that aren't aren't multi-collinear. This is desirable because it can ensure that each predictor is contributing unique information to the model - not redundant with another variable.
+
+We would like to reduce down the number of predictors by the most important predictors and to improve the accuracy of the model, thus we'll proceed with a shrinkage method (AIC) to validate the model
+
+### Correlation Plot of Numerical Variables
+
+```{r}
+int_cols = sapply(credit, is.integer)
+numeric_data = credit[,int_cols]
+
+corrplot(cor(numeric_data, method="pearson"))
+title(sub="Figure 1: Correlation Plot of Credit Data")
+```
+
+With bigger the size of circle and darker the color, it indicates the strength of correlation. Dark blue shows high positive correlation while dark red shows high negative correlation. We can see that the 'amount" predictor has a positive correlation to the response 'Default'. 
+
+Investigating the numeric predictors in relation to the Default response, we can see that the amount predictor to be the highest correlation. Overall we notice moderately strong positive and negative correlations between the variables, but none of them are too high to be a cause for concern.
+
+# 5) Building a Logistic Regression Model 
+
+```{r}
+# Convert categorical variables to factors
+credit$Default <- as.factor(credit$Default)
+credit$checkingstatus1 <- as.factor(credit$checkingstatus1)
+#credit$duration <- as.factor(credit$duration)
+credit$history <- as.factor(credit$history)
+credit$purpose <- as.factor(credit$purpose)
+#credit$amount <- as.factor(credit$amount)
+credit$savings <- as.factor(credit$savings)
+credit$employ <- as.factor(credit$employ)
+credit$installment <- as.factor(credit$installment)
+credit$status <- as.factor(credit$status)
+credit$others <- as.factor(credit$others)
+credit$residence <- as.factor(credit$residence)
+credit$property <- as.factor(credit$property)
+#credit$age <- as.factor(credit$age)
+credit$otherplans <- as.factor(credit$otherplans)
+credit$housing <- as.factor(credit$housing)
+credit$cards <- as.factor(credit$cards)
+credit$job <- as.factor(credit$job)
+credit$liable <- as.factor(credit$liable)
+credit$tele <- as.factor(credit$tele)
+credit$foreign <- as.factor(credit$foreign)
+
+# Scale numeric variables
+# credit$duration <- scale(credit$duration)
+# credit$amount <- scale(credit$amount)
+# credit$installment <- scale(credit$installment)
+# credit$residence <- scale(credit$residence)
+# credit$age <- scale(credit$age)
+# credit$cards <- scale(credit$cards)
+# credit$liable <- scale(credit$liable)
+
+```
+
+Applying the stepwise function allows us to iteratively remove non-significant predictors until only significant predictors remain for the new model which will allow for higher predictive accuracy. Then apply ROC and AUC to measure overall performance of the final model in comparison to the initial model.
+
+We created a split of data where the training set will be 80% of the data and the Testing Set will be 20% of the data which’ll help us evaluate the performance of the model for new and unseen data. The method used in R is StepAIC, which will help select the most important predictors by removing the ones that don’t contribute much to the model’s ability to predict the response.
+
+
+```{r}
+# Creating a logistic regression model with only significant predictors for high predictive accuracy.
+# step_model = stepAIC(german_credit.glm, direction = "both", trace=FALSE)
+
+set.seed(1)
+# Creating a training set by 80% and testing set by 20%
+train_index = sample(nrow(credit), 0.8*nrow(credit))
+train_credit = credit[train_index,]
+test_credit = credit[-train_index,]
+
+# Initializing initial model and stepAIC model
+initial_model = glm(Default ~ ., data=train_credit, family = binomial)
+step_model = stepAIC(initial_model, direction = "both", trace=FALSE)
+
+# Setting up the probabilities of initial model and step model
+initial_prob = predict(initial_model, newdata = test_credit, type = "response")
+step_prob = predict(step_model, newdata = test_credit, type = "response")
+
+# Standardizing the dataset by 1's and 0s to properly read into performance and confusion matrix
+initial_prob[initial_prob > 0.5] = 1
+initial_prob[initial_prob <= 0.5] = 0
+step_prob[step_prob > 0.5] = 1
+step_prob[step_prob <= 0.5] = 0
+
+# ROC Method for initial_model
+roc_initial_pred = prediction(initial_prob, test_credit$Default) 
+roc_initial_perf = performance(roc_initial_pred,"tpr","fpr")
+# Plotting ROC performance 
+plot(roc_initial_perf,colorize=TRUE, lwd = 2)
+abline(a = 0, b = 1) 
+
+# ROC Method for step_model
+roc_step_pred <- prediction(step_prob, test_credit$Default)
+roc_step_perf <- performance(roc_step_pred,"tpr","fpr")
+# Plotting ROC performance 
+plot(roc_step_perf,colorize=TRUE, lwd = 2)
+abline(a = 0, b = 1)
+
+# Performing AUC (Area Under Curve) to Initial_model and Step_model
+roc_initial_auc = performance(roc_initial_pred, measure = "auc")
+initial_auc = roc_initial_auc@y.values
+
+roc_step_auc = performance(roc_step_pred, measure = "auc")
+
+step_auc = roc_step_auc@y.values
+
+pander(data.frame(Initial_Model_AUC = initial_auc[[1]], Step_Model_AUC = step_auc[[1]]))
+
+```
+
+The AUC value resulted as .679 given from the ROC curve after doing Step-AIC has shown to be considered poor performance of both models. 
+
+```{r, message=FALSE}
+
+# Initial Model Confusion Matrix
+initial_cm = confusionMatrix(factor(initial_prob), factor(test_credit$Default))
+# Step Model Confusion Matrix
+step_cm = confusionMatrix(factor(step_prob), factor(test_credit$Default))
+
+#Printing confusion Matrix
+print("Initial Model Confusion Matrix")
+initial_cm[[2]]
+print("StepAIC Model Confusion Matrix")
+step_cm[[2]]
+
+# Wrangling out the accuracy and rates from CM function
+step_acc = data.frame(Step_Model_Acc = step_cm$overall[1])
+initial_acc = data.frame(Initial_Model_Acc = initial_cm$overall[1])
+
+initial_rates = data.frame(Initial_Model_Rates = initial_cm$byClass[1:2])
+step_rates = data.frame(Step_Model_Rates = step_cm$byClass[1:2])
+
+# Formatting the pander to allow two columns of 2 Dataframes
+df3 = cbind(initial_rates,step_rates)
+df4 = cbind(initial_acc, step_acc)
+pander(df3, split.columns = c(1,2))
+pander(df4, split.columns = c(1,2))
+```
+
+## - Initial Model VS Step-AIC Model Summary
+
+We noticed when comparing the Sensitivity, Specificity, Accuracy and AUC; StepAIC Model improves a little bit over the Initial model other than Sensitivity, showing not much of a dramatic improvement. The AUC value resulted as .679 given from the ROC curve after doing Step-AIC has shown to be considered poor performance of both models.
+
+### ROC Plot Interpretation
+
+To interpret our ROC Plot curve let's first understand that ROC plots measure the trade-off between the true positive rate (sensitivity) and the false positive rate (1-specificity) for different thresholds used to classify the observations.
+
+Essentially the closer the line approaches to the upper left corner, the higher the True Positive Rate is, which is ideal to have a higher rate of True positive, since this helps us measure the performance of the model correctly identifying whether the Bank Applicant has Defaulted in their account. From a rough glance, we see that the StepAIC model is proven to be better as the ROC curve line peaks closer to the upper corner.
+
+
+
+## - Step-AIC Final Model Equation
+
+```{r}
+step_names = names(step_model$coefficients)[-1]
+
+#Combining Regression Coefficient Est. & Std. Error
+df1 = summary(step_model)$coefficients[,c(1,2,4)]
+df2 = confint.default(step_model, level=0.95)
+df_merge = cbind(df1, df2)
+
+# Print out the Estimates, Std. Error, and Conf. Interval 
+# of only the Statistically Sig. Predictors
+print(subset(df_merge, df_merge[,3] < .05))
+
+pander(data.frame(Total_predictors=length(step_names)))
+
+# p_val = summary(df_merge)$coefficients[,4]
+# sig_step = p_val[p_val<0.05]
+
+# Obtain the summary output of the model
+# summary_fit <- summary(step_model)
+# # Extract the estimate values where the p-values are less than 0.05
+# significant_coef <- coef(summary_fit)[, "Pr(>|z|)"] < 0.05
+# significant_estimates <- coef(summary_fit)[significant_coef, "Estimate"]
+# significant_estimates
+
+# pander(data.frame(Significant_P_Values = sig_step))
+# length(sig_step)
+```
+
+```{r}
+training_err = mean(step_prob != train_credit$Default)
+# training_err2 = mean(initial_prob != train_credit$Default)
+# pander(data.frame(Initial_Model_Error_Rate = training_err2))
+pander(data.frame(Step_Model_Error_Rate = training_err))
+```
+
+
+We can notice that after creating out final model from the step wise selection method - 8 predictors were removed from the original model and 36 total predictors remained as they were deemed to be the most important predictors. The summary output above however indicates only the significant predictors that was derived from the final model. From further investigation from the step model contained noticed insignificant categorical predictors were left included. This can be due to the fact that these predictors still have predictive power in combination with other predictors in the model. 
+
+The 95% Confidence interval in the summary above is indicative that the Step-AIC Final Model has a narrow interval, indicating a stronger certainty in the coefficient estimates and precision.
+The result of the final model's training error is 38% in training error which is still high. We'll be observing different classifier methods for building a predictive model that can help better accurately classify loan applications.
+
+### For the StepAIC final model equation form we'll include only the significant predictors (18):
+
+$$ \hat Y = 1.95-.61\ checkingstatus1A12 - 1.16\ checkingstatus1A13 -\ 1.76\ checkingstatus1A14 $$
+$$+ .0245\ duration - 1.27\ historyA34 -1.62\ purposeA41 - 2.38\ purposeA410 -.94\ purposeA43 $$
+$$+ .0001\ amount - 1.26\ savingsA64 - .91 savingsA65 + .38\ installment $$
+$$- .84\ statusA93 - .021\ age - .81\ otherplansA143 - .51\ housingA152 - 1.61\ foreignA202$$
+
+
+## - (Odd Ratio) Predicting Numeric Variables in Relation to Default
+
+$Odd\ Ratio\ Formula:\frac{odds\ in\ group\ 1}{odds\ in\ group\ 2} = \frac{p_1/(1-p_1)}{p_2/(1-p_2)}$
+
+Now to interpret some of numerical predictors in the Step-AIC Final model in relation to the Response we will use a formula called Odd ratio. Odd ratio's output will help describe the odds of increase or decrease of the the Loan Applicant Defaulting based on the predictor.
+
+* When regression is **Positive**, as Predictor **increases**, **Probability of Response Increases**
+* When regression is **Negative**, as Predictor **increases**, **Probability of Response Decreases**
+
+To finding percentages of Odd Ratio we will apply in R: $(1-exp(Coefficient\ estimate)$
+
+**For example:**
+
+**Age Vs Default**
+
+* $Code\ EX:\ 1-exp(-.021)$
+
+* For the predictor Age scaled by Years, applying the log odds ratio we found that there's a 2% decrease in odd of Defaulting to 1 for every 1 year increase in age. Observing the age 
+
+```{r}
+# 1-exp(-.021)
+```
+
+**Duration Vs Default**
+
+* $Code\ EX:\ 1-exp(-.0245)$
+
+* For the predictor Duration scale by months, we found that there's 2% increase in odd of the bank applicant Defaulting to 1 for every 1 month increase  in length of the time the individual is expected to take to repay the credit. The duration predictor may play a important role in evaluating credit risk for loan applicants. A longer duration implies that the borrower will make payments over an extended period, which increases their vulnerability to fluctuations in their financial status.
+
+```{r}
+# 1-exp(.0245)
+```
+
+# 6) Model Selections
+
+## K-Nearest Neighbors Result
+
+```{r}
+# Split data to train and test
+set.seed(123)
+train <- sample(nrow(credit), 0.8 * nrow(credit))
+credit.train <- credit[train,]
+test_set <- credit[-train, ]
+train.X <- data.matrix(credit[train, -1 ])
+train.Y <- credit[train, 1 ]
+test.X  <- data.matrix(credit[-train, -1])
+```
+
+```{r}
+# KNN
+set.seed(123)
+# Create the KNN model
+knn_model <- train(Default ~ ., data = credit.train, 
+                   method = "knn",
+                   trControl = trainControl(method = "cv", number = 10),
+                   tuneLength = 20)
+
+# Find the best k value for the model
+k.optimal <- knn_model$bestTune[["k"]]
+
+# Get the true outcomes for the test set
+true_outcomes <- ifelse(test_set$Default == "1", 1, 0)
+
+knn.model <- knn(train.X, test.X, train.Y, k = k.optimal, prob = T)
+
+# Convert the predicted outcomes and true outcomes to factors with the same levels
+#knn.model <- factor(knn.model, levels = levels(test_set$Default))
+#true_outcomes <- factor(true_outcomes, levels = levels(test_set$Default))
+
+
+confusion.matrix <- table(knn.model, true_outcomes)
+knn.cm <- confusionMatrix(confusion.matrix)
+
+knn.error_rate <- 1 - knn.cm$overall["Accuracy"]
+knn.sensitivity <- knn.cm$byClass["Sensitivity"]
+knn.specificity <- knn.cm$byClass["Specificity"]
+
+# Create a prediction object
+knn.pred <- prediction(attributes(knn.model)$prob, true_outcomes)
+
+# Calculate the true positive rate (sensitivity) and false positive rate (1-specificity) for ROC curve
+knn.perf <- performance(knn.pred, "tpr", "fpr")
+
+plot(knn.perf, colorize = TRUE, lwd = 2)
+abline(a = 0, b = 1) 
+
+# Calculate the AUC
+knn.auc <- performance(knn.pred, measure = "auc")
+knn.auc <- knn.auc@y.values[[1]]
+
+knn.cm$table
+print(paste("Error rate:", knn.error_rate))
+print(paste("Sensitivity:", knn.sensitivity))
+print(paste("Specificity:", knn.specificity))
+print(paste("AUC:", knn.auc))
+```
+
+### KNN Summary
+The KNN model was fit using the training set with 10-fold cross-validation to select the optimal k value. The resulting model was used to predict the test set, and the confusion matrix, error rate, sensitivity, specificity, and area under the ROC curve (AUC) were calculated. The optimal k value was found to be 33, and the AUC was 0.4517
+
+## - LDA Result
+
+```{r}
+# LDA
+lda.model <- lda(Default ~ ., data = credit.train)
+lda.pred <- predict(lda.model, newdata = test_set, type = "response")
+#lda.table <- table(lda.pred$class, test_set$Default)
+lda.cm <- confusionMatrix(lda.pred$class, test_set$Default)
+
+lda.error_rate <- 1 - lda.cm$overall["Accuracy"]
+lda.sensitivity <- lda.cm$byClass["Sensitivity"]
+lda.specificity <- lda.cm$byClass["Specificity"]
+
+lda.pred$posterior[,2] = ifelse((lda.pred$posterior[,2])>0.5,1,0)
+lda.pred <- prediction(lda.pred$posterior[,2], test_set$Default) 
+
+lda.perf <- performance(lda.pred,"tpr","fpr")
+plot(lda.perf,colorize=TRUE, lwd = 2)
+abline(a = 0, b = 1) 
+
+lda.auc = performance(lda.pred, measure = "auc")
+
+#lda.estimate <- predict(lda.model, newdata = test_set)$class
+#lda.test_error_rate <- mean(lda.estimate != test_set$Default)
+
+lda.cm$table
+print(paste("Error rate:", lda.error_rate))
+print(paste("Sensitivity:", lda.sensitivity))
+print(paste("Specificity:", lda.specificity))
+print(paste("AUC:", lda.auc@y.values))
+#print(paste("Estimated test error rate:", lda.test_error_rate))
+```
+
+### LDA Summary
+The LDA model was fit using the training set and used to predict the test set. The confusion matrix, error rate, sensitivity, specificity, and AUC were calculated. The error rate was found to be 0.24, the sensitivity was 0.87, the specificity was 0.54, and the AUC was 0.7098.
+
+## - QDA Results
+
+```{r}
+# QDA
+qda.model <- qda(Default ~ ., data = credit.train)
+qda.pred <- predict(qda.model, newdata = test_set, type = "response")
+#qda.table <- table(qda.pred$class, test_set$Default)
+qda.cm <- confusionMatrix(qda.pred$class, test_set$Default)
+
+qda.error_rate <- 1 - qda.cm$overall["Accuracy"]
+qda.sensitivity <- qda.cm$byClass["Sensitivity"]
+qda.specificity <- qda.cm$byClass["Specificity"]
+
+qda.pred$posterior[,2] = ifelse((qda.pred$posterior[,2])>0.5,1,0)
+qda.pred <- prediction(qda.pred$posterior[,2], test_set$Default) 
+
+qda.perf <- performance(qda.pred,"tpr","fpr")
+plot(qda.perf,colorize=TRUE, lwd = 2)
+abline(a = 0, b = 1) 
+
+qda.auc = performance(qda.pred, measure = "auc")
+
+#qda.estimate <- predict(qda.model, newdata = test_set)$class
+#qda.test_error_rate <- mean(qda.estimate != test_set$Default)
+
+qda.cm$table
+print(paste("Error rate:", qda.error_rate))
+print(paste("Sensitivity:", qda.sensitivity))
+print(paste("Specificity:", qda.specificity))
+print(paste("AUC:", qda.auc@y.values))
+#print(paste("Estimated test error rate:", qda.test_error_rate))
+```
+
+### QDA Summary
+The QDA model was fit using the training set and used to predict the test set. The confusion matrix, error rate, sensitivity, specificity, and AUC were calculated. The error rate was found to be 0.29, the sensitivity was 0.81, the specificity was 0.51, and the AUC was 0.6648.
+
+## - Naïve Bayes Results
+
+```{r}
+# Naive Bayes
+nb.model <- naiveBayes(Default ~ ., data = credit.train)
+nb.pred <- predict(nb.model, newdata = test_set)
+#nb.table <- table(nb.pred$class, test_set$Default)
+nb.cm <- confusionMatrix(nb.pred, test_set$Default)
+
+nb.error_rate <- 1 - nb.cm$overall["Accuracy"]
+nb.sensitivity <- nb.cm$byClass["Sensitivity"]
+nb.specificity <- nb.cm$byClass["Specificity"]
+
+nb.pred = predict(nb.model, test_set, type = "raw")
+nb.pred[,2] = ifelse((nb.pred[,2])>0.5,1,0)
+nb.pred <- prediction(nb.pred[,2], test_set$Default)
+
+# nb.pred = predict(nb.model, credit.test, type = "raw")
+# nb.pred <- prediction(nb.pred[, 2], credit.test$Default) 
+nb.perf <- performance(nb.pred,"tpr","fpr")
+plot(nb.perf,colorize=TRUE, lwd = 2)
+abline(a = 0, b = 1) 
+
+nb.auc = performance(nb.pred, measure = "auc")
+
+#nb.estimate <- predict(nb.model, newdata = credit.test, type = "class")
+#nb.test_error_rate <- mean(nb.estimate != credit.test$Default)
+
+
+nb.cm$table
+print(paste("Error rate:", nb.error_rate))
+print(paste("Sensitivity:", nb.sensitivity))
+print(paste("Specificity:", nb.specificity))
+print(paste("AUC:", nb.auc@y.values))
+#print(paste("Estimated test error rate:", nb.test_error_rate))
+```
+
+### Naive Bayes Summary
+
+The Naive Bayes model was fit using the training set and used to predict the test set. The confusion matrix, error rate, sensitivity, specificity, and AUC were calculated. The error rate was found to be 0.22, the sensitivity was 0.90, the specificity was 0.55, and the AUC was 0.728.
+
+# 7) Conclusion
+
+```{r}
+results.matrix = matrix(0, nrow = 6, ncol = 4)
+colnames(results.matrix) = c("ER", "SENS", "SPEC", "AUC")
+rownames(results.matrix) = c("KNN", "LDA", "QDA", "LOG(IMR)", "LOG(SMR)", "NAIVE-B")
+results.matrix[1,] = as.numeric( c(knn.error_rate, knn.sensitivity, knn.specificity, knn.auc))
+results.matrix[2,] = as.numeric( c(lda.error_rate, lda.sensitivity, lda.specificity, lda.auc@y.values))
+results.matrix[3,] = as.numeric( c(qda.error_rate, qda.sensitivity, qda.specificity, qda.auc@y.values))
+results.matrix[4,] = as.numeric( c(1 - 0.7567, 0.8798, 0.4783, 0.6712))
+results.matrix[5,] = as.numeric( c(1 - 0.7333, 0.8462, 0.4783, 0.6898))
+results.matrix[6,] = as.numeric( c(nb.error_rate, nb.sensitivity, nb.specificity, nb.auc@y.values))
+
+print(results.matrix)
+```
+
+## - Model Selection Overview
+
+The dataset we use for this project is "germancredit.csv", preprocesses the data by converting certain variables to factors, splits the data into a training and testing set, and fits several classification models including k-Nearest Neighbors (KNN), Linear Discriminant Analysis (LDA), Quadratic Discriminant Analysis (QDA), and Naive Bayes.
+
+For KNN, the optimal k value is selected using 10-fold cross-validation and the resulting model is used to make predictions on the test set. The confusion matrix, error rate, sensitivity, specificity, and area under the ROC curve (AUC) are calculated and printed.
+
+For LDA, QDA, and Naive Bayes, the models are fit using the training set and used to predict the test set. The confusion matrix, error rate, sensitivity, specificity, and AUC are calculated and printed.
+
+Finally, the results from all models are organized in a matrix and printed.
+
+## - Model Conclusion
+
+In conclusion, this code demonstrates the application of several classification models to the "germancredit.csv" dataset, with the goal of predicting credit default. The KNN, LDA, QDA, and Naive Bayes models were evaluated, and their performance was assessed using various metrics such as error rate, sensitivity, specificity, and AUC.
+
+The **Naive Bayes model** performed the best overall, with the lowest error rate and highest sensitivity. However, the other models also provided valuable insights into creditworthiness and may be useful in developing customized loan products or targeting marketing efforts.
+
+## - Further analysis
+
+Once a bank approves a loan, there is always the risk that the borrower may default on their payments. This can lead to significant financial losses for the bank. However, by using predictive modeling techniques like the ones demonstrated in this analysis, banks can assess the creditworthiness of their borrowers and make more informed lending decisions.
+
+**For example: **
+
+* The **Naive Bayes model** performed particularly well in predicting credit default in the "germancredit.csv" dataset. By utilizing this model, banks can more accurately identify high-risk borrowers and take appropriate measures to minimize the risk of default. This may include setting higher interest rates, requiring collateral, or denying the loan altogether.
+
+* **LDA and QDA models** may also provide valuable insights into creditworthiness by identifying key variables that are strongly associated with default. Banks can use this information to develop customized loan products for different risk profiles, or to target their marketing efforts more effectively.
+
+Using predictive modeling techniques, such as those shown in this analysis, can give banks an edge by enabling them to make better lending decisions and reduce financial losses from credit defaults. By utilizing data and analytics, banks can improve profitability and offer customized loan products that meet the unique needs and risk profiles of their customers.
+
+## - Overall Challenges
+
+The early stages of this report was challenging as analyzing and interpreting the huge array of levels available from the Bank's categorical variables caused a fair amount of time for online research. The German Data Description had some missing labels such as for "Installment" predictor which made it difficult to interpret. Overall there weren't any clear definitions provided for the predictors in the [germancreditDescription.docx](https://www.biz.uiowa.edu/faculty/jledolter/DataMining/germancreditDescription.docx), so a lot had to come from rough interpretation from other bank data articles - which was a necessary step for data analysis. As well our KNN method had trouble working properly even after extensive troubleshooting. However, our conceptual analysis was able to come together after piecing how the predictors interacted with the response and observing the statistical analysis of the important predictors and model selections.
+
+
+## - References Cited
+
+**German Credit Data:** [germancredit.csv](https://www.biz.uiowa.edu/faculty/jledolter/DataMining/germancredit.csv)
+
+**German Credit Description:** [germancreditDescription.docx](https://www.biz.uiowa.edu/faculty/jledolter/DataMining/germancreditDescription.docx)
+
+**Model Selection Formulas: ** [Bookdown.org](https://bookdown.org/egarpor/PM-UC3M/lm-ii-modsel.html)
+
+**Bank Analysis Article:  ** [thebalancemoney.com](https://www.thebalancemoney.com/how-banks-use-predictive-analytics-4178221)
+
+
+
+
+
+
+
+
+
+
+
+
+
