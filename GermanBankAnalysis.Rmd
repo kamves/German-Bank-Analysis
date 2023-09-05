@@ -1,5 +1,5 @@
 ---
-title: 'STAT 387: German Credit Data Analysis'
+title: 'German Credit Data Analysis'
 author: "Kamerin Vesajd & Louis Tu"
 date: "03-01-2023"
 output:
